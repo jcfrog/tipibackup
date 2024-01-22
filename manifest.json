@@ -1,0 +1,20 @@
+{
+    "description": "Hellotipi backup",
+    "manifest_version": 2,
+    "name": "Hellotipi backup",
+    "version": "1.0",
+    "homepage_url": "https://github.com/",
+    "icons": {
+        "48": "icons/arrow-48.png"
+    },
+    "permissions": [
+        "activeTab",
+        "storage",
+        "tabs",
+        "http://*.hellotipi.com/*"
+    ],
+    "browser_action": {
+        "default_icon": "icons/arrow-48.png",
+        "default_popup": "popup/bgpopup.html"
+    }
+}
