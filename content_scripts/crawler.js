@@ -74,24 +74,21 @@
             // Sélectionnez tous les éléments div avec la classe "minipic"
             const albumElements = document.querySelectorAll('div.minipic');
 
-            // Initialisez un tableau pour stocker les informations sur les albums
-            const albumsInfo = [];
+
 
             // Parcourez les éléments div et extrayez le nom de l'album et le lien
             albumElements.forEach(element => {
                 const albumLink = element.querySelector('a'); // Sélectionnez le lien à l'intérieur du div
                 const albumName = albumLink.querySelector('strong').textContent; // Obtenez le texte du nom de l'album
                 const albumURL = albumLink.getAttribute('href'); // Obtenez l'attribut "href" du lien
+                const albumDetails = albumLink.querySelector('span').innerHTML; // Obtenez le texte des détails de l'album
 
-                // Ajoutez les informations de l'album au tableau albumsInfo
-                albumsInfo.push({
-                    name: albumName,
-                    url: albumURL
-                });
+                console.log(albumName, albumURL, albumDetails);
                 browser.runtime.sendMessage({
                     command: "oneAlbumPage",
                     url: albumURL,
-                    name: albumName
+                    name: albumName,
+                    details: albumDetails
                 });
             });
 
@@ -116,7 +113,7 @@
             listAlbumsPages();
         } else if (message.command === "scan-all-albums") {
             listAllAlbums();
-        }
+        } 
     });
 
 })();

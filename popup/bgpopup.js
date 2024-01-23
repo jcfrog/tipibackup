@@ -32,10 +32,10 @@ function updateAlbumsLinksDisplay() {
         const a = document.createElement("a");
         a.href = link.url;
         a.textContent = link.title;
-        li.appendChild(a);
         const but = document.createElement("div");
         but.className = "download-album";
         but.linkidx = i;
+
 
         but.addEventListener("click", function (event) {
             const linkIndex = event.target.linkidx; // Obtenez l'indice du lien associé au bouton
@@ -79,6 +79,24 @@ function updateAlbumsLinksDisplay() {
         });
 
         li.appendChild(but);
+        li.appendChild(a);
+
+        // add details
+        const text = link.details.split("<br>");
+        console.log(text);
+        const photoMatches = text[2].match(/(\d+) photos/);
+        const videoMatches = text[3].match(/(\d+) vidéo/);
+        const commentMatches = text[4].match(/(\d+) commentaire/);
+
+        // Vérifiez si une correspondance a été trouvée et obtenez les nombres correspondants
+        const numPhotos = photoMatches ? parseInt(photoMatches[1]) : 0;
+        const numVideos = videoMatches ? parseInt(videoMatches[1]) : 0;
+        const numComments = commentMatches ? parseInt(commentMatches[1]) : 0;
+
+        // Créez un élément <span> pour afficher les détails
+        const details = document.createElement('span');
+        details.textContent = ` (${numPhotos} 🖼️, ${numComments} 💬, ${numVideos} 🎥)`;
+        li.appendChild(details);
 
         ul.appendChild(li);
     }
@@ -86,6 +104,29 @@ function updateAlbumsLinksDisplay() {
     albumsLinksDiv.appendChild(ul);
 
 }
+
+// check if file exists
+function doesExist(fileNameToCheck) {
+    return new Promise((resolve, reject) => {
+        browser.downloads.search({ query: [fileNameToCheck] }).then(results => {
+            if (results.length > 0) {
+                // Le fichier existe déjà dans le répertoire de téléchargement
+                console.log(`Le fichier "${fileNameToCheck}" existe déjà.`);
+                // Vous pouvez accéder aux détails du téléchargement avec results[0]
+                console.log(results[0]);
+                resolve(true); // Renvoyer true si le fichier existe
+            } else {
+                // Le fichier n'existe pas dans le répertoire de téléchargement
+                console.log(`Le fichier "${fileNameToCheck}" n'existe pas.`);
+                resolve(false); // Renvoyer false si le fichier n'existe pas
+            }
+        }).catch(error => {
+            console.error("Erreur lors de la recherche de fichiers :", error);
+            reject(error); // Rejeter la promesse en cas d'erreur
+        });
+    });
+}
+
 
 function downloadImageFromPage(url, bHD) {
     console.log("downloadImageFromPage", url, bHD)
@@ -114,7 +155,7 @@ function downloadImageFromPage(url, bHD) {
             const images = htmlDoc.querySelectorAll('img#image_medium');
             images.forEach((img) => {
                 const imgSrc = img.getAttribute('src');
-                console.log("image a télécharger : ",imgSrc);
+                console.log("image a télécharger : ", imgSrc);
                 downloadImage(imgSrc, imgId, albumId);
             });
         })
@@ -126,23 +167,29 @@ function downloadImageFromPage(url, bHD) {
 function downloadImage(imgSrc, imgId, albumId, bHD) {
     // Construisez l'URL de l'image que vous souhaitez télécharger
     const imageURL = imgSrc;
-  
-    // Utilisez l'API browser.downloads pour télécharger l'image sans spécifier de chemin de fichier
-    browser.downloads.download({
-      url: imageURL,
-      filename: "hellotipi/" + albumId + "/" + (bHD ? "HD_" : "BD_") + imgId + ".jpg",
-      saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
-    })
-    .then(downloadId => {
-      // Téléchargement lancé avec succès
-      console.log("Téléchargement lancé avec l'ID :", downloadId);
-    })
-    .catch(error => {
-      console.error("Erreur lors du téléchargement de l'image :", error);
+    const fileName = "hellotipi/" + albumId + "/" + (bHD ? "HD_" : "BD_") + imgId + ".jpg";
+
+    doesExist(fileName).then((fileExists) => {
+        if (!fileExists) {
+            // Téléchargez l'image
+            // Utilisez l'API browser.downloads pour télécharger l'image sans spécifier de chemin de fichier
+            browser.downloads.download({
+                url: imageURL,
+                filename: fileName,
+                saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
+            }).then(downloadId => {
+                // Téléchargement lancé avec succès
+                console.log("Téléchargement lancé avec l'ID :", downloadId);
+            }).catch(error => {
+                console.error("Erreur lors du téléchargement de l'image :", error);
+            });
+        } else {
+            console.log("Le fichier existe déjà", fileName);
+        }
     });
-  }
-  
-  
+}
+
+
 
 
 function downloadImage2(imgSrc, imgId, albumId) {
@@ -198,7 +245,8 @@ browser.runtime.onMessage.addListener((message) => {
     } else if (message.command == "oneAlbumPage") {
         const newAlbum = {
             url: message.url,
-            title: message.name
+            title: message.name,
+            details: message.details
         };
         const isDuplicate = albumsLinks.some(album => album.url === newAlbum.url);
         if (!isDuplicate) {
