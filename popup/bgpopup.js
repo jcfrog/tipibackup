@@ -1,4 +1,33 @@
+currentTipi = null;
+
+
 function listenForClicks() {
+
+
+
+    // get active tab url
+    browser.tabs.query({ active: true, currentWindow: true })
+        .then(tabs => {
+            // get active tab url
+            const url = new URL(tabs[0].url);
+            // check it's an hellotipi domain or subdomain
+            if (url.hostname.indexOf("hellotipi") == -1) {
+                console.log("not an hellotipi domain");
+                document.getElementById("tipi-name").textContent = "Ceci n'est pas un site Hellotipi";
+                return;
+            }
+
+            // get subdomain
+            currentTipi = url.hostname.split('.')[0];
+            console.log("subdomain", currentTipi);
+            document.getElementById("tipi-name").textContent = currentTipi;
+        })
+        .catch(reportError);
+
+    //document.getElementById("current-tipi").textContent = currentTipi;
+
+
+
     document.addEventListener("click", (e) => {
         if (e.target.id == "scan-album-pages") {
             browser.tabs.query({ active: true, currentWindow: true })
