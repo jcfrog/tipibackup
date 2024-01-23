@@ -9,8 +9,7 @@ function listenForClicks() {
                 .then(tabs => { sendMessageToTabs(tabs, "scan-all-albums") })
                 .catch(reportError);
         }
-    }
-    )
+    })
 }
 
 function sendMessageToTabs(tabs, msg) {
@@ -27,7 +26,8 @@ function updateAlbumsLinksDisplay() {
     // create ul element
     const ul = document.createElement("ul");
     // create li elements
-    albumsLinks.forEach((link) => {
+    for (var i = 0; i < albumsLinks.length; i++) {
+        var link = albumsLinks[i];
         const li = document.createElement("li");
         const a = document.createElement("a");
         a.href = link.url;
@@ -35,13 +35,153 @@ function updateAlbumsLinksDisplay() {
         li.appendChild(a);
         const but = document.createElement("div");
         but.className = "download-album";
+        but.linkidx = i;
+
+        but.addEventListener("click", function (event) {
+            const linkIndex = event.target.linkidx; // Obtenez l'indice du lien associé au bouton
+            const clickedLink = albumsLinks[linkIndex]; // Obtenez l'objet du lien correspondant
+
+            // Vous pouvez maintenant faire quelque chose avec le lien cliqué, par exemple :
+            console.log("Bouton cliqué pour l'album :", clickedLink.title);
+            console.log("Lien de l'album :", clickedLink.url);
+
+            // Ajoutez ici la logique pour gérer le clic du bouton
+            // browser.tabs.create({
+            //     url: clickedLink.url
+            // }).then(onCreated, onError);
+            fetch(clickedLink.url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("La requête n'a pas abouti.");
+                    }
+                    // Convertissez la réponse en texte
+                    return response.text();
+                })
+                .then(htmlContent => {
+                    // parse html to look for images
+                    const parser = new DOMParser();
+                    const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
+                    // images pages are displayed in a ul with id "photolist"
+                    // every image page link is in a li with an id starting with "photo_"
+                    // let's fetch all li with id starting with "photo_"
+                    const imagesPages = htmlDoc.querySelectorAll('li[id^="photo_"] a');
+                    const imagesPagesLinks = [];
+                    imagesPages.forEach((page) => {
+                        imagesPagesLinks.push(page.href);
+                        //console.log(page.href);
+                        downloadImageFromPage(page.href, true);
+                    });
+                })
+                .catch(error => {
+                    console.error("Erreur lors du chargement de la page :", error);
+                });
+
+        });
+
         li.appendChild(but);
-        
+
         ul.appendChild(li);
-    });
+    }
     // append ul to div
     albumsLinksDiv.appendChild(ul);
 
+}
+
+function downloadImageFromPage(url, bHD) {
+    console.log("downloadImageFromPage", url, bHD)
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("La requête n'a pas abouti.");
+            }
+            // Convertissez la réponse en texte
+            return response.text();
+        })
+        .then(htmlContent => {
+            // get image id from url
+            const u = new URL(url);
+            const params = new URLSearchParams(u.search);
+            const imgId = params.get('photo_id');
+            const albumId = params.get('album_id');
+
+            console.log("Viewer photo chargé", imgId, albumId)
+
+
+            // parse html to look for images
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
+            // image is displayed in a div with id "image_medium"
+            const images = htmlDoc.querySelectorAll('img#image_medium');
+            images.forEach((img) => {
+                const imgSrc = img.getAttribute('src');
+                console.log("image a télécharger : ",imgSrc);
+                downloadImage(imgSrc, imgId, albumId);
+            });
+        })
+        .catch(error => {
+            console.error("Erreur lors du chargement de la page :", error);
+        });
+}
+
+function downloadImage(imgSrc, imgId, albumId, bHD) {
+    // Construisez l'URL de l'image que vous souhaitez télécharger
+    const imageURL = imgSrc;
+  
+    // Utilisez l'API browser.downloads pour télécharger l'image sans spécifier de chemin de fichier
+    browser.downloads.download({
+      url: imageURL,
+      filename: "hellotipi/" + albumId + "/" + (bHD ? "HD_" : "BD_") + imgId + ".jpg",
+      saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
+    })
+    .then(downloadId => {
+      // Téléchargement lancé avec succès
+      console.log("Téléchargement lancé avec l'ID :", downloadId);
+    })
+    .catch(error => {
+      console.error("Erreur lors du téléchargement de l'image :", error);
+    });
+  }
+  
+  
+
+
+function downloadImage2(imgSrc, imgId, albumId) {
+    // dowload imgage file to disk
+    fetch(imgSrc)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("La requête n'a pas abouti.");
+            }
+            // Convertissez la réponse en blob
+            return response.blob();
+        })
+        .then(imageBlob => {
+            // Créez un objet URL à partir du blob
+            const imageURL = URL.createObjectURL(imageBlob);
+            // Créez un élément <a> pour télécharger l'image
+            const imageLink = document.createElement('a');
+            imageLink.href = imageURL;
+            imageLink.download = imgId + ".jpg";
+            // Ajoutez l'élément <a> au DOM
+            document.body.appendChild(imageLink);
+            // Cliquez sur le lien pour télécharger l'image
+            imageLink.click();
+            // Supprimez l'élément <a> du DOM
+            document.body.removeChild(imageLink);
+        })
+        .catch(error => {
+            console.error("Erreur lors du chargement de l'image :", error);
+        });
+}
+
+
+// onError to be defined
+function onError(error) {
+    console.log(`Error: ${error}`);
+}
+// onCreated to be defined
+function onCreated(tab) {
+    console.log(`Created new tab: ${tab.id}`);
 }
 
 // create an array to store the urls of all albums pages
@@ -91,22 +231,7 @@ function updateAlbumsPagesDisplay() {
 }
 
 
-// listen to openTab message from content script
-browser.runtime.onMessage.addListener((message) => {
-    if (message.command === "openAlbum") {
-        browser.tabs.create({
-            url: message.url
-        }).then(onCreated, onError);
-    }
-});
-// onError to be defined
-function onError(error) {
-    console.log(`Error: ${error}`);
-}
-// onCreated to be defined
-function onCreated(tab) {
-    console.log(`Created new tab: ${tab.id}`);
-}
+
 
 
 

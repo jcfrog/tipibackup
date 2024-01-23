@@ -8,6 +8,7 @@
         "48": "icons/arrow-48.png"
     },
     "permissions": [
+        "downloads",
         "activeTab",
         "storage",
         "tabs",
