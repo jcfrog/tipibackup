@@ -1,5 +1,4 @@
 
-
 currentTipi = null;
 // create an array to store the urls of all albums pages
 const albumsPagesLinks = [];
@@ -198,6 +197,7 @@ function downloadImageFromPage(url, albumDirName, resolutions) {
             return response.text();
         })
         .then(htmlContent => {
+
             // get image id from url
             const u = new URL(url);
             const params = new URLSearchParams(u.search);
@@ -206,6 +206,23 @@ function downloadImageFromPage(url, albumDirName, resolutions) {
 
             console.log("Viewer photo chargé", imgId, albumId)
 
+            const htmlFileName = "hellotipi/" + currentTipi + "/albums/" + albumDirName + "/html/" + imgId + ".html";
+            doesExist(htmlFileName).then((fileExists) => {
+                if (!fileExists) {
+                    browser.downloads.download({
+                        url: url,
+                        filename: htmlFileName,
+                        saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
+                    }).then(downloadId => {
+                        // Téléchargement lancé avec succès
+                        console.log("Téléchargement html lancé avec l'ID :", downloadId);
+                    }).catch(error => {
+                        console.error("Erreur lors du téléchargement du fichier :", error);
+                    });
+                } else {
+                    console.log("Le fichier existe déjà", htmlFileName);
+                }
+            });
 
             // parse html to look for images
             const parser = new DOMParser();
@@ -226,15 +243,20 @@ function downloadImageFromPage(url, albumDirName, resolutions) {
             if (resolutions.indexOf("hr") > -1) {
                 // download haute résolution
                 // image is available from a link 
-                const hrLink = htmlDoc.querySelector("#outilsphoto")
-                    .querySelectorAll("h3")[3]
+                const h3s = htmlDoc.querySelector("#outilsphoto")
+                    .querySelectorAll("h3");
+                if (h3s[3] === undefined){
+                    console.log("no HR link found");
+                    return;
+                }
+                const hrLink = h3s[3]
                     .nextSibling
                     .querySelector("a").href;
                 // get the link href
                 if (hrLink == null) {
                     console.log("no HR link found");
                     return;
-                }else{                    
+                } else {
                     console.log("image HR a télécharger : ", hrLink);
                     downloadImage(hrLink, imgId, albumDirName, true);
                 }
@@ -259,7 +281,7 @@ function cleanAlbumNameForDirectory(albumName) {
 function downloadImage(imgSrc, imgId, albumDirName, bHD) {
     // Construisez l'URL de l'image que vous souhaitez télécharger
     const imageURL = imgSrc;
-    const fileName = "hellotipi/" + currentTipi + "/" + albumDirName + "/" + (bHD ? "HD/" : "BD/") + imgId + ".jpg";
+    const fileName = "hellotipi/" + currentTipi + "/albums/" + albumDirName + "/" + (bHD ? "HD/" : "BD/") + imgId + ".jpg";
 
     doesExist(fileName).then((fileExists) => {
         if (!fileExists) {
