@@ -9,10 +9,14 @@
 <body>
   <div id="popup-content">
     <h1>Hellotipi backup tools</h1>
-    <!-- <p><a id="scan-album-pages" href="#">Télécharger les pages d'albums</a></p> -->
     <p>Tipi actuel : <b><span id="tipi-name">inconnu</span></b></p>
-    <p><a id="scan-all-albums" href="#">Lister tous les albums photo</a></p>
-    <div id="albums-pages"></div>
+
+    <h2>Albums photo</h2>
+    <select id="resolution">
+      <option value="br" selected="selected">Basse résolution (affichées sur le site, plus rapide)</option>
+      <option value="hr">Haute résolution</option>
+      <option value="brhr">Haute et basse résolutions</option>
+      </select>
     <div id="albums-links"></div>
 
   </div>

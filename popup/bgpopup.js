@@ -1,5 +1,10 @@
-currentTipi = null;
 
+
+currentTipi = null;
+// create an array to store the urls of all albums pages
+const albumsPagesLinks = [];
+const albumsLinks = [];
+albumsNames = [];
 
 function listenForClicks() {
 
@@ -34,17 +39,38 @@ function listenForClicks() {
                 .then(tabs => { sendMessageToTabs(tabs, "scan-album-pages") })
                 .catch(reportError);
         } else if (e.target.id == "scan-all-albums") {
-            browser.tabs.query({ active: true, currentWindow: true })
-                .then(tabs => { sendMessageToTabs(tabs, "scan-all-albums") })
-                .catch(reportError);
+            askForAlbums();
         }
     })
+
+
+    askForAlbums();
+
+}
+
+function askForAlbums() {
+    browser.tabs.query({ active: true, currentWindow: true })
+        .then(tabs => { sendMessageToTabs(tabs, "scan-all-albums") })
+        .catch(reportError);
 }
 
 function sendMessageToTabs(tabs, msg) {
     browser.tabs.sendMessage(tabs[0].id, {
         command: msg,
     });
+}
+
+function getAlbumIdFromURL(url) {
+    const u = new URL(url);
+    const params = new URLSearchParams(u.search);
+    const albumId = params.get('album_id');
+    return albumId;
+}
+function removeAccents(str) {
+    // Utilisez la méthode normalize pour normaliser les caractères accentués
+    const normalizedStr = str.normalize("NFD");
+    // Utilisez une expression régulière pour supprimer les caractères diacritiques
+    return normalizedStr.replace(/[\u0300-\u036f]/g, "");
 }
 
 function updateAlbumsLinksDisplay() {
@@ -70,14 +96,18 @@ function updateAlbumsLinksDisplay() {
             const linkIndex = event.target.linkidx; // Obtenez l'indice du lien associé au bouton
             const clickedLink = albumsLinks[linkIndex]; // Obtenez l'objet du lien correspondant
 
+            // get user choice from select box
+            const select = document.getElementById("resolution");
+            const resolutions = select.options[select.selectedIndex].value;
+            console.log("selectedValue resolution", resolutions);
+
+
             // Vous pouvez maintenant faire quelque chose avec le lien cliqué, par exemple :
             console.log("Bouton cliqué pour l'album :", clickedLink.title);
             console.log("Lien de l'album :", clickedLink.url);
 
-            // Ajoutez ici la logique pour gérer le clic du bouton
-            // browser.tabs.create({
-            //     url: clickedLink.url
-            // }).then(onCreated, onError);
+            const albumDirName = cleanAlbumNameForDirectory(removeAccents(clickedLink.title)) + "_" + getAlbumIdFromURL(clickedLink.url);
+
             fetch(clickedLink.url)
                 .then(response => {
                     if (!response.ok) {
@@ -98,7 +128,7 @@ function updateAlbumsLinksDisplay() {
                     imagesPages.forEach((page) => {
                         imagesPagesLinks.push(page.href);
                         //console.log(page.href);
-                        downloadImageFromPage(page.href, true);
+                        downloadImageFromPage(page.href, albumDirName, resolutions);
                     });
                 })
                 .catch(error => {
@@ -157,8 +187,8 @@ function doesExist(fileNameToCheck) {
 }
 
 
-function downloadImageFromPage(url, bHD) {
-    console.log("downloadImageFromPage", url, bHD)
+function downloadImageFromPage(url, albumDirName, resolutions) {
+    console.log("downloadImageFromPage", url, resolutions)
     fetch(url)
         .then(response => {
             if (!response.ok) {
@@ -180,23 +210,56 @@ function downloadImageFromPage(url, bHD) {
             // parse html to look for images
             const parser = new DOMParser();
             const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
-            // image is displayed in a div with id "image_medium"
-            const images = htmlDoc.querySelectorAll('img#image_medium');
-            images.forEach((img) => {
-                const imgSrc = img.getAttribute('src');
-                console.log("image a télécharger : ", imgSrc);
-                downloadImage(imgSrc, imgId, albumId);
-            });
+
+            console.log("resolutions", resolutions)
+
+            if (resolutions.indexOf("br") > -1) {
+                // download basse résolution
+                // image is displayed in a div with id "image_medium"
+                const images = htmlDoc.querySelectorAll('img#image_medium');
+                images.forEach((img) => {
+                    const imgSrc = img.getAttribute('src');
+                    console.log("image LR a télécharger : ", imgSrc);
+                    downloadImage(imgSrc, imgId, albumDirName, false);
+                });
+            }
+            if (resolutions.indexOf("hr") > -1) {
+                // download haute résolution
+                // image is available from a link 
+                const hrLink = htmlDoc.querySelector("#outilsphoto")
+                    .querySelectorAll("h3")[3]
+                    .nextSibling
+                    .querySelector("a").href;
+                // get the link href
+                if (hrLink == null) {
+                    console.log("no HR link found");
+                    return;
+                }else{                    
+                    console.log("image HR a télécharger : ", hrLink);
+                    downloadImage(hrLink, imgId, albumDirName, true);
+                }
+            }
         })
         .catch(error => {
             console.error("Erreur lors du chargement de la page :", error);
         });
 }
 
-function downloadImage(imgSrc, imgId, albumId, bHD) {
+function cleanAlbumNameForDirectory(albumName) {
+    // Supprimer les caractères spéciaux et les espaces
+    const cleanName = albumName.replace(/[^\w\s]/g, '-').replace(/\s+/g, '-');
+    // Limiter la longueur si nécessaire (par exemple, à 255 caractères)
+    const maxLength = 100;
+    if (cleanName.length > maxLength) {
+        return cleanName.substring(0, maxLength);
+    }
+    return cleanName;
+}
+
+function downloadImage(imgSrc, imgId, albumDirName, bHD) {
     // Construisez l'URL de l'image que vous souhaitez télécharger
     const imageURL = imgSrc;
-    const fileName = "hellotipi/" + albumId + "/" + (bHD ? "HD_" : "BD_") + imgId + ".jpg";
+    const fileName = "hellotipi/" + currentTipi + "/" + albumDirName + "/" + (bHD ? "HD/" : "BD/") + imgId + ".jpg";
 
     doesExist(fileName).then((fileExists) => {
         if (!fileExists) {
@@ -221,48 +284,6 @@ function downloadImage(imgSrc, imgId, albumId, bHD) {
 
 
 
-function downloadImage2(imgSrc, imgId, albumId) {
-    // dowload imgage file to disk
-    fetch(imgSrc)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error("La requête n'a pas abouti.");
-            }
-            // Convertissez la réponse en blob
-            return response.blob();
-        })
-        .then(imageBlob => {
-            // Créez un objet URL à partir du blob
-            const imageURL = URL.createObjectURL(imageBlob);
-            // Créez un élément <a> pour télécharger l'image
-            const imageLink = document.createElement('a');
-            imageLink.href = imageURL;
-            imageLink.download = imgId + ".jpg";
-            // Ajoutez l'élément <a> au DOM
-            document.body.appendChild(imageLink);
-            // Cliquez sur le lien pour télécharger l'image
-            imageLink.click();
-            // Supprimez l'élément <a> du DOM
-            document.body.removeChild(imageLink);
-        })
-        .catch(error => {
-            console.error("Erreur lors du chargement de l'image :", error);
-        });
-}
-
-
-// onError to be defined
-function onError(error) {
-    console.log(`Error: ${error}`);
-}
-// onCreated to be defined
-function onCreated(tab) {
-    console.log(`Created new tab: ${tab.id}`);
-}
-
-// create an array to store the urls of all albums pages
-const albumsPagesLinks = [];
-const albumsLinks = [];
 // listen to crawlPage message from content script
 browser.runtime.onMessage.addListener((message) => {
     if (message.command === "albumsPage") {

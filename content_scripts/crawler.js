@@ -98,6 +98,15 @@
                     });
                 });
 
+                // unsorted photos are in a special album
+                const u = "http://" + subdomain + ".hellotipi.com/?page=album&action=open&album_id=unsorted"
+                browser.runtime.sendMessage({
+                    command: "oneAlbumPage",
+                    url: u,
+                    name: "Non triées",
+                    details: "<span><strong>Non triées</strong><br><br>? photos<br>? vidéo<br>? commentaire</span>"
+                });
+
                 browser.runtime.sendMessage({
                     command: "refreshAlbumsList",
                 });
@@ -117,11 +126,9 @@
  * Listen for messages from the background script.
  */
     browser.runtime.onMessage.addListener((message) => {
-    if (message.command === "scan-album-pages") {
-        listAlbumsPages();
-    } else if (message.command === "scan-all-albums") {
-        listAllAlbums();
-    }
-});
+        if (message.command === "scan-all-albums") {
+            listAllAlbums();
+        }
+    });
 
-}) ();
+})();
