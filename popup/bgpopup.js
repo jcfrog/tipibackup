@@ -129,6 +129,15 @@ function updateAlbumsLinksDisplay() {
                         //console.log(page.href);
                         downloadImageFromPage(page.href, albumDirName, resolutions);
                     });
+                    // videos
+                    const videosPages = htmlDoc.querySelectorAll('li[id^="video_"] a');
+                    const videosPagesLinks = [];
+                    videosPages.forEach((page) => {
+                        videosPagesLinks.push(page.href);
+                        //console.log(page.href);
+                        downloadVideoFromPage(page.href, albumDirName);
+                    });
+
                 })
                 .catch(error => {
                     console.error("Erreur lors du chargement de la page :", error);
@@ -185,6 +194,63 @@ function doesExist(fileNameToCheck) {
     });
 }
 
+function downloadVideoFromPage(url, albumDirName) {
+    console.log("downloadVideoFromPage", url)
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("La requête n'a pas abouti.");
+            }
+            // Convertissez la réponse en texte
+            return response.text();
+        })
+        .then(htmlContent => {
+
+            // get image id from url
+            const u = new URL(url);
+            const params = new URLSearchParams(u.search);
+            const vidId = params.get('id_video');
+            const albumId = params.get('album_id');
+
+            console.log("Viewer video chargé", vidId, albumId)
+
+            const htmlFileName = "hellotipi/" + currentTipi + "/albums/" + albumDirName + "/html/" + vidId + ".html";
+            doesExist(htmlFileName).then((fileExists) => {
+                if (!fileExists) {
+                    browser.downloads.download({
+                        url: url,
+                        filename: htmlFileName,
+                        saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
+                    }).then(downloadId => {
+                        // Téléchargement lancé avec succès
+                        console.log("Téléchargement html lancé avec l'ID :", downloadId);
+                    }).catch(error => {
+                        console.error("Erreur lors du téléchargement du fichier :", error);
+                    });
+                } else {
+                    console.log("Le fichier existe déjà", htmlFileName);
+                }
+            });
+
+            // parse html to look for images
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
+
+            // download video
+            const section = htmlDoc.querySelector(".outils") 
+            if (section === undefined){
+                console.log("no video found");
+                return;
+            }
+            const videoSrc = section.querySelector("a").href            
+            console.log("video a télécharger : ", videoSrc);
+            downloadVideo(videoSrc, vidId, albumDirName);
+        })
+        .catch(error => {
+            console.error("Erreur lors du chargement de la page :", error);
+        });
+
+}
 
 function downloadImageFromPage(url, albumDirName, resolutions) {
     console.log("downloadImageFromPage", url, resolutions)
@@ -277,7 +343,30 @@ function cleanAlbumNameForDirectory(albumName) {
     }
     return cleanName;
 }
+function downloadVideo(videoSrc, vidId, albumDirName) {
+    // Construisez l'URL de l'image que vous souhaitez télécharger
+    const videoURL = videoSrc;
+    const fileName = "hellotipi/" + currentTipi + "/albums/" + albumDirName + "/videos/" + vidId + ".mp4";
 
+    doesExist(fileName).then((fileExists) => {
+        if (!fileExists) {
+            // Téléchargez l'image
+            // Utilisez l'API browser.downloads pour télécharger l'image sans spécifier de chemin de fichier
+            browser.downloads.download({
+                url: videoURL,
+                filename: fileName,
+                saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
+            }).then(downloadId => {
+                // Téléchargement lancé avec succès
+                console.log("Téléchargement lancé avec l'ID :", downloadId);
+            }).catch(error => {
+                console.error("Erreur lors du téléchargement de l'image :", error);
+            });
+        } else {
+            console.log("Le fichier existe déjà", fileName);
+        }
+    });
+}
 function downloadImage(imgSrc, imgId, albumDirName, bHD) {
     // Construisez l'URL de l'image que vous souhaitez télécharger
     const imageURL = imgSrc;
