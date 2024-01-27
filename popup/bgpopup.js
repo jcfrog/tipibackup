@@ -5,7 +5,49 @@ const albumsPagesLinks = [];
 const albumsLinks = [];
 albumsNames = [];
 
-function listenForClicks() {
+
+function saveValueToStorage(key, value) {
+    browser.storage.local.set({ [key]: value })
+        .then(() => {
+            console.log(`La valeur "${value}" a été enregistrée sous la clé "${key}" dans le stockage local.`);
+        })
+        .catch((error) => {
+            console.error(`Erreur lors de l'enregistrement de la valeur : ${error}`);
+        });
+}
+// Pour récupérer une valeur du stockage local
+function getValueFromStorage(key) {
+    return browser.storage.local.get(key)
+        .then((result) => {
+            return result[key];
+        })
+        .catch((error) => {
+            console.error(`Erreur lors de la récupération de la valeur : ${error}`);
+        });
+}
+
+function init() {
+
+    // get select from local storage
+    getValueFromStorage("resolutions").then((value) => {
+        if (value !== undefined) {
+
+            console.log("resolutions", value);
+            const select = document.getElementById("resolutions");
+            select.value = value;
+        }
+    });
+
+    // listen to select change to store it in local storage
+
+    const resolutionSelect = document.getElementById("resolutions");
+    resolutionSelect.addEventListener("change", function () {
+        // Récupérez la nouvelle valeur sélectionnée
+        const selectedValue = resolutionSelect.value;
+
+        // Enregistrez la nouvelle valeur dans le local storage
+        saveValueToStorage("resolutions", selectedValue)
+    });
 
 
 
@@ -28,10 +70,6 @@ function listenForClicks() {
         })
         .catch(reportError);
 
-    //document.getElementById("current-tipi").textContent = currentTipi;
-
-
-
     document.addEventListener("click", (e) => {
         if (e.target.id == "scan-album-pages") {
             browser.tabs.query({ active: true, currentWindow: true })
@@ -39,6 +77,8 @@ function listenForClicks() {
                 .catch(reportError);
         } else if (e.target.id == "scan-all-albums") {
             askForAlbums();
+        } else if (e.target.id == "download-all-docs") {
+            downloadAllDocs();
         }
     })
 
@@ -46,6 +86,134 @@ function listenForClicks() {
     askForAlbums();
 
 }
+
+function registerDownloadRequest(url, fileName) {
+    // store all download requests in local storage
+
+}
+
+function downloadAllDocs() {
+    // fetch docs main page to get the number of pages
+    const docsPageURL = "http://" + currentTipi + ".hellotipi.com/?page=docs";
+    fetch(docsPageURL)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('La requête n\'a pas abouti.');
+            }
+            // Convertissez la réponse en texte
+            return response.text();
+        })
+        .then(htmlContent => {
+            // parse html to look for docs info
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
+            // find ul with class "pages"
+            var nbPages = 1;
+            const pagesUl = htmlDoc.querySelector("ul.pages");
+
+            if (pagesUl !== null) {
+                // find last li
+                const lastLi = pagesUl.lastElementChild;
+                // get last page number
+                nbPages = parseInt(lastLi.textContent);
+            }
+            console.log("nb Pages docs", nbPages);
+            // download all pages
+            for (let i = 1; i <= nbPages; i++) {
+                const url = "http://" + currentTipi + ".hellotipi.com/?page=docs&p=" + (i - 1);
+                downloadDocsFromPage(url);
+            }
+
+        })
+        .catch(error => {
+            console.error("Erreur lors du chargement de la page :", error);
+        });
+}
+
+function downloadDocsFromPage(url) {
+    console.log("downloadDocsFromPage", url);
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('La requête n\'a pas abouti.');
+            }
+            // Convertissez la réponse en texte
+            return response.text();
+        }
+        )
+        .then(htmlContent => {
+            // parse html to look for docs info
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
+            // find divs 
+            const docsLi = htmlDoc.querySelectorAll("ul#docslist>li>div.docdiv2");
+            console.log("nb docs in page: ", docsLi.length, "in page: ", url);
+            // find all docs
+            for (let i = 0; i < docsLi.length; i++) {
+                const docLi = docsLi[i];
+                const docUrl = docLi.querySelector("a").href;
+                var docName = cleanAlbumNameForDirectory(removeAccents(docLi.querySelector("h2").textContent));
+                // we need to keep the last . for the extension. It has been replaced by a - in cleanAlbumNameForDirectory
+                const docExt = docName.substring(docName.lastIndexOf("-") + 1);
+                docName = docName.substring(0, docName.lastIndexOf("-")) + "." + docExt;
+
+
+                const docDetails = docLi.querySelector("p").textContent;
+                // download doc
+                downloadDoc(docUrl, docName, docDetails);
+            }
+        })
+        .catch(error => {
+            console.error("Erreur lors du chargement de la page :", error);
+        }
+        );
+}
+
+function downloadDoc(docUrl, docName, docDetails) {
+    const docFileName = "hellotipi/" + currentTipi + "/docs/" + docName;
+    const docFileNameDesc = docFileName + ".txt";
+    doesExist(docFileName).then((fileExists) => {
+        if (!fileExists) {
+            // Téléchargez le fichier
+            // Utilisez l'API browser.downloads pour télécharger le fichier sans spécifier de chemin de fichier
+            browser.downloads.download({
+                url: docUrl,
+                filename: docFileName,
+                saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
+            }).then(downloadId => {
+                // Téléchargement lancé avec succès
+                console.log("Téléchargement lancé pour le doc avec l'ID :", downloadId, docName);
+            }).catch(error => {
+                console.error("Erreur lors du téléchargement du fichier doc :", error);
+            });
+        } else {
+            console.log("Le fichier existe déjà", docFileName);
+        }
+    }
+    );
+
+    doesExist(docFileNameDesc).then((fileExists) => {
+        if (!fileExists) {
+            const blob = new Blob([docDetails], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob)
+            // save description to file
+            browser.downloads.download({
+                url: url,
+                filename: docFileNameDesc,
+                saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
+            }).then(downloadId => {
+                // Téléchargement lancé avec succès
+                console.log("Téléchargement lancé pour le doc description avec l'ID :", downloadId, docName);
+            }).catch(error => {
+                console.error("Erreur lors du téléchargement du fichier doc description :", error);
+            });
+        } else {
+            console.log("Le fichier existe déjà", docFileName);
+        }
+    }
+    );
+}
+
 
 function askForAlbums() {
     browser.tabs.query({ active: true, currentWindow: true })
@@ -77,6 +245,26 @@ function updateAlbumsLinksDisplay() {
     const albumsLinksDiv = document.getElementById("albums-links");
     // clear div
     albumsLinksDiv.innerHTML = "";
+
+    if (albumsLinks.length > 0) {
+        // add a button to download all albums
+        const d = document.createElement("p");
+        // create a link to download all albums
+        const a = document.createElement("a");
+        a.href = "#";
+        a.textContent = "Télécharger tous les albums";
+        a.addEventListener("click", function (event) {
+            // click all buttons
+            const buttons = document.getElementsByClassName("download-album");
+            for (var i = 0; i < buttons.length; i++) {
+                buttons[i].click();
+            }
+        }
+        );
+        d.appendChild(a);
+        albumsLinksDiv.appendChild(d);
+    }
+
     // create ul element
     const ul = document.createElement("ul");
     // create li elements
@@ -96,7 +284,8 @@ function updateAlbumsLinksDisplay() {
             const clickedLink = albumsLinks[linkIndex]; // Obtenez l'objet du lien correspondant
 
             // get user choice from select box
-            const select = document.getElementById("resolution");
+            const select = document.getElementById("resolutions");
+            console.log("select", select);
             const resolutions = select.options[select.selectedIndex].value;
             console.log("selectedValue resolution", resolutions);
 
@@ -175,6 +364,7 @@ function updateAlbumsLinksDisplay() {
 // check if file exists
 function doesExist(fileNameToCheck) {
     return new Promise((resolve, reject) => {
+
         browser.downloads.search({ query: [fileNameToCheck] }).then(results => {
             if (results.length > 0) {
                 // Le fichier existe déjà dans le répertoire de téléchargement
@@ -237,12 +427,12 @@ function downloadVideoFromPage(url, albumDirName) {
             const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
 
             // download video
-            const section = htmlDoc.querySelector(".outils") 
-            if (section === undefined){
+            const section = htmlDoc.querySelector(".outils")
+            if (section === null) {
                 console.log("no video found");
                 return;
             }
-            const videoSrc = section.querySelector("a").href            
+            const videoSrc = section.querySelector("a").href
             console.log("video a télécharger : ", videoSrc);
             downloadVideo(videoSrc, vidId, albumDirName);
         })
@@ -311,16 +501,16 @@ function downloadImageFromPage(url, albumDirName, resolutions) {
                 // image is available from a link 
                 const h3s = htmlDoc.querySelector("#outilsphoto")
                     .querySelectorAll("h3");
-                if (h3s[3] === undefined){
-                    console.log("no HR link found");
+                if (h3s[h3s.length-1] === undefined) {
+                    console.log("no HR link found (h3)");
                     return;
                 }
-                const hrLink = h3s[3]
+                const hrLink = h3s[h3s.length-1]
                     .nextSibling
                     .querySelector("a").href;
                 // get the link href
                 if (hrLink == null) {
-                    console.log("no HR link found");
+                    console.log("no HR link found (hrLink)");
                     return;
                 } else {
                     console.log("image HR a télécharger : ", hrLink);
@@ -452,7 +642,7 @@ function updateAlbumsPagesDisplay() {
  * If we couldn't inject the script, handle the error.
  */
 browser.tabs.executeScript({ file: "/content_scripts/crawler.js" })
-    .then(listenForClicks)
+    .then(init)
     .catch(reportExecuteScriptError);
 
 /**
