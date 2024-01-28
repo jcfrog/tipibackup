@@ -79,6 +79,8 @@ function init() {
             askForAlbums();
         } else if (e.target.id == "download-all-docs") {
             downloadAllDocs();
+        } else if (e.target.id == "download-all-coms") {
+            downloadAllDiscussions();
         }
     })
 
@@ -89,6 +91,93 @@ function init() {
 
 function registerDownloadRequest(url, fileName) {
     // store all download requests in local storage
+
+}
+var accuMsgs = [];
+function downloadAllDiscussions() {
+    // fetch docs main page to get the number of pages
+    const docsPageURL = "http://" + currentTipi + ".hellotipi.com/?page=short_msg&action=view_old";
+    fetch(docsPageURL)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('La requête n\'a pas abouti.');
+            }
+            // Convertissez la réponse en texte
+            return response.text();
+        })
+        .then(htmlContent => {
+            // parse html to look for docs info
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
+            // find ul with class "pages"
+            var nbPages = 1;
+            const pagesUl = htmlDoc.querySelector("ul.pages");
+
+            if (pagesUl !== null) {
+                // find last li
+                const lastLi = pagesUl.lastElementChild;
+                // get last page number
+                nbPages = parseInt(lastLi.textContent);
+            }
+            console.log("nb Pages discussions", nbPages);
+            // download all pages
+            for (let i = 1; i <= nbPages; i++) {
+                const url = "http://" + currentTipi + ".hellotipi.com/?page=short_msg&action=view_old&p=" + (i - 1);
+                downloadDiscussionsFromPage(url, i);
+            }
+        })
+        .catch(error => {
+            console.error("Erreur lors du chargement de la page :", error);
+        });
+}
+
+function downloadDiscussionsFromPage(url, i) {
+    console.log("downloadDiscussionsFromPage", url);
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('La requête n\'a pas abouti.');
+            }
+            // Convertissez la réponse en texte
+            return response.text();
+        }
+        )
+        .then(htmlContent => {
+            // parse html to look for docs info
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
+            accuMsgs[i] = htmlDoc.querySelector("div#comview.current_comments").innerHTML;
+            console.log("taille de l'accu : ", accuMsgs[i].length);
+
+
+            const prefix = i.toString().padStart(4, '0');
+            const comsFileName = "hellotipi/" + currentTipi + "/discussions/"+prefix+"-discussions.html";
+            doesExist(comsFileName).then((fileExists) => {
+                if (!fileExists) {
+                    const blob = new Blob([accuMsgs[i]], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob)
+                    // save description to file
+                    browser.downloads.download({
+                        url: url,
+                        filename: comsFileName,
+                        saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
+                    }).then(downloadId => {
+                        // Téléchargement lancé avec succès
+                        console.log("Téléchargement lancé pour le les coms avec l'ID :", downloadId, comsFileName);
+                    }).catch(error => {
+                        console.error("Erreur lors du téléchargement du fichier coms:", error);
+                    });
+                } else {
+                    console.log("Le fichier existe déjà", comsFileName);
+                }
+            }
+            );
+        }
+        )
+        .catch(error => {
+            console.error("Erreur lors du chargement de la page :", error);
+        }
+        );
 
 }
 
@@ -501,11 +590,11 @@ function downloadImageFromPage(url, albumDirName, resolutions) {
                 // image is available from a link 
                 const h3s = htmlDoc.querySelector("#outilsphoto")
                     .querySelectorAll("h3");
-                if (h3s[h3s.length-1] === undefined) {
+                if (h3s[h3s.length - 1] === undefined) {
                     console.log("no HR link found (h3)");
                     return;
                 }
-                const hrLink = h3s[h3s.length-1]
+                const hrLink = h3s[h3s.length - 1]
                     .nextSibling
                     .querySelector("a").href;
                 // get the link href
