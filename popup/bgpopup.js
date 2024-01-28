@@ -81,6 +81,8 @@ function init() {
             downloadAllDocs();
         } else if (e.target.id == "download-all-coms") {
             downloadAllDiscussions();
+        } else if (e.target.id == "download-all-contacts") {
+            downloadAllContacts();
         }
     })
 
@@ -93,6 +95,54 @@ function registerDownloadRequest(url, fileName) {
     // store all download requests in local storage
 
 }
+
+// Contacts
+function downloadAllContacts() {
+    const contactsPageURL = "http://" + currentTipi + ".hellotipi.com/?page=annuaire";
+    fetch(contactsPageURL)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('La requête n\'a pas abouti.');
+            }
+            // Convertissez la réponse en texte
+            return response.text();
+        }).then(htmlContent => {
+            // parse html to look for contacts info
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
+
+            var contacts = "";
+
+            htmlDoc.querySelectorAll(".annuaire_li").forEach((contact) => {
+                contacts += contact.innerHTML;
+            });
+
+            const contactsFileName = "hellotipi/" + currentTipi + "/contacts/contacts.html";
+            doesExist(contactsFileName).then((fileExists) => {
+                if (!fileExists) {
+                    const blob = new Blob([contacts], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob)
+                    // save description to file
+                    browser.downloads.download({
+                        url: url,
+                        filename: contactsFileName,
+                        saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
+                    }).then(downloadId => {
+                        // Téléchargement lancé avec succès
+                        console.log("Téléchargement lancé pour les contacts avec l'ID :", downloadId, contactsFileName);
+                    }).catch(error => {
+                        console.error("Erreur lors du téléchargement du fichier contacts:", error);
+                    });
+                } else {
+                    console.log("Le fichier existe déjà", contactsFileName);
+                }
+            }
+            );
+        })
+
+}
+
+// Messages 
 var accuMsgs = [];
 function downloadAllDiscussions() {
     // fetch docs main page to get the number of pages
@@ -151,7 +201,7 @@ function downloadDiscussionsFromPage(url, i) {
 
 
             const prefix = i.toString().padStart(4, '0');
-            const comsFileName = "hellotipi/" + currentTipi + "/discussions/"+prefix+"-discussions.html";
+            const comsFileName = "hellotipi/" + currentTipi + "/discussions/" + prefix + "-discussions.html";
             doesExist(comsFileName).then((fileExists) => {
                 if (!fileExists) {
                     const blob = new Blob([accuMsgs[i]], { type: 'text/plain' });
@@ -163,7 +213,7 @@ function downloadDiscussionsFromPage(url, i) {
                         saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
                     }).then(downloadId => {
                         // Téléchargement lancé avec succès
-                        console.log("Téléchargement lancé pour le les coms avec l'ID :", downloadId, comsFileName);
+                        console.log("Téléchargement lancé pour les coms avec l'ID :", downloadId, comsFileName);
                     }).catch(error => {
                         console.error("Erreur lors du téléchargement du fichier coms:", error);
                     });
