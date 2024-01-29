@@ -5,6 +5,12 @@ const albumsPagesLinks = [];
 const albumsLinks = [];
 albumsNames = [];
 
+const dcMsgs = new downloadsCounter("#coms-stats");
+const dcAlbums = new downloadsCounter("#albums-stats");
+const dcDocs = new downloadsCounter("#docs-stats");
+const dcNews = new downloadsCounter("#news-stats");
+
+
 
 function saveValueToStorage(key, value) {
     browser.storage.local.set({ [key]: value })
@@ -49,7 +55,14 @@ function init() {
         saveValueToStorage("resolutions", selectedValue)
     });
 
-
+    browser.downloads.onChanged.addListener(function(downloadDelta) {
+        if (downloadDelta.state && downloadDelta.state.current === "complete") {
+            // Le téléchargement est terminé
+            const downloadId = downloadDelta.id;
+            console.log(`Téléchargement terminé pour l'ID : ${downloadId}`);
+            
+        }
+    });
 
     // get active tab url
     browser.tabs.query({ active: true, currentWindow: true })
@@ -83,6 +96,10 @@ function init() {
             downloadAllDiscussions();
         } else if (e.target.id == "download-all-contacts") {
             downloadAllContacts();
+        } else if (e.target.id == "download-all-news") {
+            downloadAllNews();
+        } else if (e.target.id == "dbg-but") {
+            dcMsgs.addAsked();
         }
     })
 
@@ -94,6 +111,98 @@ function init() {
 function registerDownloadRequest(url, fileName) {
     // store all download requests in local storage
 
+}
+
+
+// news
+function downloadAllNews() {
+    // fetch docs main page to get the number of pages
+    const docsPageURL = "http://" + currentTipi + ".hellotipi.com/?page=blog";
+    fetch(docsPageURL)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('La requête n\'a pas abouti.');
+            }
+            // Convertissez la réponse en texte
+            return response.text();
+        })
+        .then(htmlContent => {
+            // parse html to look for docs info
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
+            // find ul with class "pages"
+            var nbPages = 1;
+            const pagesUl = htmlDoc.querySelector("ul.pages");
+
+            if (pagesUl !== null) {
+                // find last li
+                const lastLi = pagesUl.lastElementChild;
+                // get last page number
+                nbPages = parseInt(lastLi.textContent);
+            }
+            console.log("nb Pages news", nbPages);
+            // download all pages
+            for (let i = 1; i <= nbPages; i++) {
+                const url = "http://" + currentTipi + ".hellotipi.com/?page=blog&p=" + (i - 1);
+                downloadNewsFromPage(url);
+            }
+
+        })
+        .catch(error => {
+            console.error("Erreur lors du chargement de la page :", error);
+        });
+}
+
+function downloadNewsFromPage(url) {
+    console.log("downloadNewsFromPage", url);
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('La requête n\'a pas abouti.');
+            }
+            // Convertissez la réponse en texte
+            return response.text();
+        }
+        )
+        .then(htmlContent => {
+            // parse html to look for docs info
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(htmlContent, 'text/html');
+            // find divs 
+            const links = htmlDoc.querySelectorAll("h2.titre2>a")
+            // find all news
+            for (let i = 0; i < links.length; i++) {
+                const news = links[i].href;
+                var newsName = cleanAlbumNameForDirectory(removeAccents(links[i].textContent));
+                console.log("news a télécharger : ", newsName, news);
+                downloadNews(news, newsName);
+            }
+        })
+        .catch(error => {
+            console.error("Erreur lors du chargement de la page :", error);
+        }
+        );
+
+}
+
+function downloadNews(news, newsName) {
+    const newsFileName = "hellotipi/" + currentTipi + "/news/" + newsName + ".html";
+    doesExist(newsFileName).then((fileExists) => {
+        if (!fileExists) {
+            browser.downloads.download({
+                url: news,
+                filename: newsFileName,
+                saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
+            }).then(downloadId => {
+                // Téléchargement lancé avec succès
+                console.log("Téléchargement lancé avec l'ID :", downloadId);
+            }).catch(error => {
+                console.error("Erreur lors du téléchargement du fichier :", error);
+            });
+        } else {
+            console.log("Le fichier existe déjà", newsFileName);
+        }
+    });
 }
 
 // Contacts
@@ -213,6 +322,7 @@ function downloadDiscussionsFromPage(url, i) {
                         saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
                     }).then(downloadId => {
                         // Téléchargement lancé avec succès
+                        dcMsgs.addAsked();
                         console.log("Téléchargement lancé pour les coms avec l'ID :", downloadId, comsFileName);
                     }).catch(error => {
                         console.error("Erreur lors du téléchargement du fichier coms:", error);
@@ -402,6 +512,10 @@ function updateAlbumsLinksDisplay() {
         );
         d.appendChild(a);
         albumsLinksDiv.appendChild(d);
+        const albumsStats = document.createElement("div");
+        albumsStats.id = "coms-stats";
+        albumsLinksDiv.appendChild(albumsStats);
+
     }
 
     // create ul element
