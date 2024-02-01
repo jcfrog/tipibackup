@@ -27,7 +27,7 @@ class downloadsCounter {
     }
 
     displayString() {
-        return `${this.done}/${this.asked} (${this.errors} errors)`;
+        return `${this.done} / ${this.asked} (${this.errors} errors)`;
     }
 
     update() {
@@ -35,7 +35,7 @@ class downloadsCounter {
         console.log(e, this.elemId);
         if (e){
             e.innerText = this.displayString();
-            console.log(e.innerText);
+            //console.log(e.innerText);
         }
     }
 

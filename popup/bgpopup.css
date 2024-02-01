@@ -41,3 +41,10 @@ p {
   cursor: pointer;
 }
 
+.stats {
+  font-size: 12px;
+  color: rgb(94, 94, 94);
+  margin: 0;
+  padding: 0;
+  margin-bottom: 5px;
+}

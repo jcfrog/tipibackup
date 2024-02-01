@@ -73,6 +73,13 @@ function init() {
         }
     });
 
+    dcAlbums.update();
+    dcMsgs.update();
+    dcDocs.update();
+    dcNews.update();
+    dcContacts.update();
+    
+
     // listen to select change to store it in local storage
 
     const resolutionSelect = document.getElementById("resolutions");
