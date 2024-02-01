@@ -3,14 +3,43 @@ currentTipi = null;
 // create an array to store the urls of all albums pages
 const albumsPagesLinks = [];
 const albumsLinks = [];
-albumsNames = [];
 
 const dcMsgs = new downloadsCounter("#coms-stats");
 const dcAlbums = new downloadsCounter("#albums-stats");
 const dcDocs = new downloadsCounter("#docs-stats");
 const dcNews = new downloadsCounter("#news-stats");
+const dcContacts = new downloadsCounter("#contacts-stats");
 
+var downloadsData = {};
+function registerDownloadRequest(id, url, fileName, counter) {
+    // store all download requests in local storage
+    counter.addAsked();
+    downloadsData[id] = { url: url, fileName: fileName, counter: counter };
+    console.log("registerDownloadRequest", downloadsData[id], url, fileName);
+    console.log("downloadsData nb keys", Object.keys(downloadsData).length);
+}
+function registerDownloadError(id) {
+    const d = downloadsData[id];
+    if (d !== undefined) {
+        d.counter.addError();
+        console.log("Erreur de téléchargement", d.url, d.fileName);
+    }else{
+        console.log("registerDownloadError error, can't find download info for id ", id);
+    }
+}
+function registerDownloadSuccess(id) {
+    const d = downloadsData[id];
+    console.log("registerDownloadSuccess", d, id);
+    console.log("registerDownloadSuccess nb keys", Object.keys(downloadsData).length);
 
+    if (d !== undefined) {
+        d.counter.addDone();
+        // remove download data
+        delete downloadsData[id];
+    }else{
+        console.log("registerDownloadSuccess error, can't find download info for id ", id);
+    }
+} 
 
 function saveValueToStorage(key, value) {
     browser.storage.local.set({ [key]: value })
@@ -55,12 +84,12 @@ function init() {
         saveValueToStorage("resolutions", selectedValue)
     });
 
-    browser.downloads.onChanged.addListener(function(downloadDelta) {
+    browser.downloads.onChanged.addListener(function (downloadDelta) {
         if (downloadDelta.state && downloadDelta.state.current === "complete") {
             // Le téléchargement est terminé
             const downloadId = downloadDelta.id;
             console.log(`Téléchargement terminé pour l'ID : ${downloadId}`);
-            
+            registerDownloadSuccess(downloadId);
         }
     });
 
@@ -108,10 +137,7 @@ function init() {
 
 }
 
-function registerDownloadRequest(url, fileName) {
-    // store all download requests in local storage
 
-}
 
 
 // news
@@ -195,6 +221,7 @@ function downloadNews(news, newsName) {
                 saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
             }).then(downloadId => {
                 // Téléchargement lancé avec succès
+                registerDownloadRequest(downloadId, news, newsFileName, dcNews)
                 console.log("Téléchargement lancé avec l'ID :", downloadId);
             }).catch(error => {
                 console.error("Erreur lors du téléchargement du fichier :", error);
@@ -238,6 +265,7 @@ function downloadAllContacts() {
                         saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
                     }).then(downloadId => {
                         // Téléchargement lancé avec succès
+                        registerDownloadRequest(downloadId, url, contactsFileName, dcContacts);
                         console.log("Téléchargement lancé pour les contacts avec l'ID :", downloadId, contactsFileName);
                     }).catch(error => {
                         console.error("Erreur lors du téléchargement du fichier contacts:", error);
@@ -322,7 +350,8 @@ function downloadDiscussionsFromPage(url, i) {
                         saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
                     }).then(downloadId => {
                         // Téléchargement lancé avec succès
-                        dcMsgs.addAsked();
+                        registerDownloadRequest(downloadId, url, comsFileName, dcMsgs)
+
                         console.log("Téléchargement lancé pour les coms avec l'ID :", downloadId, comsFileName);
                     }).catch(error => {
                         console.error("Erreur lors du téléchargement du fichier coms:", error);
@@ -430,6 +459,8 @@ function downloadDoc(docUrl, docName, docDetails) {
                 filename: docFileName,
                 saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
             }).then(downloadId => {
+                registerDownloadRequest(downloadId, docUrl, docFileName, dcDocs)
+
                 // Téléchargement lancé avec succès
                 console.log("Téléchargement lancé pour le doc avec l'ID :", downloadId, docName);
             }).catch(error => {
@@ -801,6 +832,7 @@ function downloadVideo(videoSrc, vidId, albumDirName) {
                 saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
             }).then(downloadId => {
                 // Téléchargement lancé avec succès
+                registerDownloadRequest(downloadId, videoURL, fileName, dcVideos);
                 console.log("Téléchargement lancé avec l'ID :", downloadId);
             }).catch(error => {
                 console.error("Erreur lors du téléchargement de l'image :", error);
@@ -825,6 +857,7 @@ function downloadImage(imgSrc, imgId, albumDirName, bHD) {
                 saveAs: false // Si vous voulez que le navigateur enregistre sous forme de fichier, définissez saveAs sur true
             }).then(downloadId => {
                 // Téléchargement lancé avec succès
+                registerDownloadRequest(downloadId, imageURL, fileName, dcAlbums);
                 console.log("Téléchargement lancé avec l'ID :", downloadId);
             }).catch(error => {
                 console.error("Erreur lors du téléchargement de l'image :", error);
