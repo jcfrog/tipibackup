@@ -9,4 +9,4 @@ Tipibackup est une extension pour Firefox permettant d'extraire des données de 
 Voir le wiki pour :
 
 - [Installation](https://github.com/jcfrog/tipibackup/wiki/Tester-l'extension)
-- Utilisation
+- [Utilisation](https://github.com/jcfrog/tipibackup/wiki/Fonctionnement)
